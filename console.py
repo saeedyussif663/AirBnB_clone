@@ -7,7 +7,9 @@ Contains the entry point of the command interpreter
 import cmd
 import json
 import re
+from shlex import shlex
 import models
+from models.engine.file_storage import FileStorage
 from models import storage
 from models.base_model import BaseModel
 from models.user import User
@@ -23,65 +25,13 @@ class HBNBCommand(cmd.Cmd):
     Custom console class
     """
 
-    prompt = '(hbnb) '
+    prompt = ("(hbnb) ")
 
-    def my_errors(self, line, num_of_args):
-        """Displays error messages to user
-
-        Args:
-            line(any): gets user input using command line
-            num_of_args(int): number of input arguments
-
-        Description:
-            Displays output to the use based on
-            the input commands.
-
-        """
-        classes = ["BaseModel", "User", "State", "City",
-                   "Amenity", "Place", "Review"]
-
-        msg = ["** class name missing **",
-               "** class doesn't exist **",
-               "** instance id missing **",
-               "** no instance found **",
-               "** attribute name missing **",
-               "** value missing **"]
-        if not line:
-            print(msg[0])
-            return 1
-        args = line.split()
-        if num_of_args >= 1 and args[0] not in classes:
-            print(msg[1])
-            return 1
-        elif num_of_args == 1:
-            return 0
-        if num_of_args >= 2 and len(args) < 2:
-            print(msg[2])
-            return 1
-        d = storage.all()
-
-        for i in range(len(args)):
-            if args[i][0] == '"':
-                args[i] = args[i].replace('"', "")
-        key = args[0] + '.' + args[1]
-        if num_of_args >= 2 and key not in d:
-            print(msg[3])
-            return 1
-        elif num_of_args == 2:
-            return 0
-        if num_of_args >= 4 and len(args) < 3:
-            print(msg[4])
-            return 1
-        if num_of_args >= 4 and len(args) < 4:
-            print(msg[5])
-            return 1
-        return 0
-
-    def handle_empty_line(self, line):
+    def handle_empty_line(self, args):
         """
         Eliminates empty lines
         """
-        return False
+        pass
 
     def do_quit(self, args):
         """Handles the 'quit' command
@@ -103,7 +53,7 @@ class HBNBCommand(cmd.Cmd):
         """
         return True
 
-    def do_create(self, line):
+    def do_create(self, args):
         """Creates a new instance of @cls_name class,
         and prints the new instance's ID.
 
@@ -112,21 +62,19 @@ class HBNBCommand(cmd.Cmd):
             Example: 'create User'
 
         """
-        if (self.my_errors(line, 1) == 1):
+        if len(args) == 0:
+            print("** class name missing **")
             return
-        args = line.split(" ")
+        try:
+            args = shlex.split(args)
+            new_instance = eval(args[0])()
+            new_instance.save()
+            print(new_instance.id)
 
-        """
-        args[0] contains class name, create new instance
-        of that class updates 'updated_at' attribute,
-        and saves into JSON file
-        """
-        obj = eval(args[0])()
-        obj.save()
+        except NameError:
+            print("** class doesn't exist **")
 
-        print(obj.id)
-
-    def do_show(self, line):
+    def do_show(self, args):
         """Prints a string representation of an instance.
 
         Args:
@@ -134,16 +82,30 @@ class HBNBCommand(cmd.Cmd):
             Example: 'show User 1234-1234-1234'
 
         """
-        if (self.my_errors(line, 2) == 1):
+        args = shlex.split(args)
+        if len(args) == 0:
+            print("** class name missing **")
             return
-        args = line.split()
-        d = storage.all()
-        if args[1][0] == '"':
-            args[1] = args[1].replace('"', "")
-        key = args[0] + '.' + args[1]
-        print(d[key])
+        if len(args) == 1:
+            print("** instance id missing **")
+            return
+        storage = FileStorage()
+        storage.reload()
+        obj_dict = storage.all()
+        try:
+            eval(args[0])
+        except NameError:
+            print("** class doesn't exist **")
+            return
+        key = args[0] + "." + args[1]
+        key = args[0] + "." + args[1]
+        try:
+            value = obj_dict[key]
+            print(value)
+        except KeyError:
+            print("** no instance found **")
 
-    def do_destroy(self, line):
+    def do_destroy(self, args):
         """Deletes an instance of a certain class.
 
         Args:
@@ -151,17 +113,31 @@ class HBNBCommand(cmd.Cmd):
             Example: 'destroy User 1234-1234-1234'
 
         """
-        if (self.my_errors(line, 2) == 1):
+        args = shlex.split(args)
+        if len(args) == 0:
+            print("** class name missing **")
             return
-        args = line.split()
-        d = storage.all()
-        if args[1][0] == '"':
-            args[1] = args[1].replace('"', "")
-        key = args[0] + '.' + args[1]
-        del d[key]
+        elif len(args) == 1:
+            print("** instance id missing **")
+            return
+        class_name = args[0]
+        class_id = args[1]
+        storage = FileStorage()
+        storage.reload()
+        obj_dict = storage.all()
+        try:
+            eval(class_name)
+        except NameError:
+            print("** class doesn't exist **")
+            return
+        key = class_name + "." + class_id
+        try:
+            del obj_dict[key]
+        except KeyError:
+            print("** no instance found **")
         storage.save()
 
-    def do_all(self, line):
+    def do_all(self, args):
         """Shows all instances, or instances of a certain class
 
         Args:
@@ -169,17 +145,20 @@ class HBNBCommand(cmd.Cmd):
             Example: 'all' OR 'all User'
 
         """
-        d = storage.all()
-        if not line:
-            print([str(x) for x in d.values()])
+        objects = storage.all()
+        if not args:
+            print([str(obj) for obj in objects.values()])
             return
-        args = line.split()
-        if (self.my_errors(line, 1) == 1):
-            return
-        print([str(v) for v in d.values()
-               if v.__class__.__name__ == args[0]])
 
-    def do_update(self, line):
+        class_name = args.split()[0]
+        if class_name not in self.class_mapping:
+            print('** class doesn\'t exist **')
+            return
+
+        print([str(obj) for key, obj in objects.items() if key.split('.')[0]
+              == class_name])
+
+    def do_update(self, args):
         """Updates an instance based on the class name
         and id by adding or updating an attribute
 
@@ -189,44 +168,64 @@ class HBNBCommand(cmd.Cmd):
             Example: 'update User 1234-1234-1234 my_name "Bob"'
 
         """
-        if (self.my_errors(line, 4) == 1):
+        storage = FileStorage()
+        storage.reload()
+        args = shlex.split(args)
+        if len(args) == 0:
+            print("** class name missing **")
             return
-        args = line.split()
-        d = storage.all()
-        for i in range(len(args[1:]) + 1):
-            if args[i][0] == '"':
-                args[i] = args[i].replace('"', "")
-        key = args[0] + '.' + args[1]
-        attr_k = args[2]
-        attr_v = args[3]
+        elif len(args) == 1:
+            print("** instance id missing **")
+            return
+        elif len(args) == 2:
+            print("** attribute name missing **")
+            return
+        elif len(args) == 3:
+            print("** value missing **")
+            return
         try:
-            if attr_v.isdigit():
-                attr_v = int(attr_v)
-            elif float(attr_v):
-                attr_v = float(attr_v)
-        except ValueError:
+            eval(args[0])
+        except NameError:
+            print("** class doesn't exist **")
+            return
+        key = args[0] + "." + args[1]
+        obj_dict = storage.all()
+        try:
+            obj_value = obj_dict[key]
+        except KeyError:
+            print("** no instance found **")
+            return
+        try:
+            attr_type = type(getattr(obj_value, args[2]))
+            args[3] = attr_type(args[3])
+        except AttributeError:
             pass
-        class_attr = type(d[key]).__dict__
-        if attr_k in class_attr.keys():
-            try:
-                attr_v = type(class_attr[attr_k])(attr_v)
-            except Exception:
-                print("Entered wrong value type")
-                return
-        setattr(d[key], attr_k, attr_v)
-        storage.save()
+        setattr(obj_value, args[2], args[3])
+        obj_value.save()
 
-    def my_count(self, class_n):
+    def do_count(self, args):
         """
         Method counts instances of a certain class
         """
-        count_instance = 0
-        for instance_object in storage.all().values():
-            if instance_object.__class__.__name__ == class_n:
-                count_instance += 1
-        print(count_instance)
+        obj_list = []
+        storage = FileStorage()
+        storage.reload()
+        objects = storage.all()
+        try:
+            if len(args) != 0:
+                eval(args)
+        except NameError:
+            print("** class doesn't exist **")
+            return
+        for key, val in objects.items():
+            if len(args) != 0:
+                if type(val) is eval(args):
+                    obj_list.append(val)
+            else:
+                obj_list.append(val)
+        print(len(obj_list))
 
-    def default(self, line):
+    def default(self, args):
         """Method to take care of following commands:
         <class name>.all()
         <class name>.count()
