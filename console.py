@@ -83,17 +83,17 @@ class HBNBCommand(cmd.Cmd):
         """
         return False
 
-    def do_quit(self, line):
+    def do_quit(self, args):
         """Handles the 'quit' command
 
         Args:
-            line(args): input argument for quiting
+            (args): input argument for quiting
             the terminal
 
         """
         return True
 
-    def do_EOF(self, line):
+    def do_EOF(self, args):
         """Quits command interpreter with ctrl+d
 
          Args:
