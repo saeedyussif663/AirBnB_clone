@@ -22,21 +22,19 @@ class BaseModel():
     """Base class"""
     def __init__(self, *args, **kwargs):
         """initialization function"""
-        DATE_TIME_FORMAT = '%Y-%m-%dT%H:%M:%S.%f'
-        if not kwargs:
-            self.id = str(uuid4())
-            self.created_at = datetime.utcnow()
-            self.updated_at = datetime.utcnow()
-            models.storage.new(self)
-        else:
+        if kwargs:
             for key, value in kwargs.items():
-                if key in ("updated_at", "created_at"):
-                    self.__dict__[key] = datetime.strptime(
-                        value, DATE_TIME_FORMAT)
-                elif key[0] == "id":
-                    self.__dict__[key] = str(value)
-                else:
-                    self.__dict__[key] = value
+                if key in ["created_at", "updated_at"]:
+                    setattr(
+                            self, key, datetime.strptime(
+                                value, '%Y-%m-%dT%H:%M:%S.%f'))
+                elif key != "__class__":
+                    setattr(self, key, value)
+        else:
+            self.id = str(uuid4())
+            self.created_at = datetime.now()
+            self.updated_at = self.created_at
+            # models.storage.new(self)
 
     def __str__(self):
         """str method"""
@@ -44,16 +42,15 @@ class BaseModel():
 
     def save(self):
         """updates the object"""
-        self.updated_at = datetime.utcnow()
-        models.storage.save()
+        self.updated_at = datetime.now()
+        # models.storage.save()
 
     def to_dict(self):
         """returns the attribute """
-        map_objects = {}
-        for key, value in self.__dict__.items():
-            if key == "created_at" or key == "updated_at":
-                map_objects[key] = value.strptime('%Y-%m-%dT%H:%M:%S.%f')
-            else:
-                map_objects[key] = value
-        map_objects["__class__"] = self.__class__.__name__
-        return map_objects
+        model_dict = self.__dict__.copy()
+
+        model_dict["__class__"] = self.__class__.__name__
+        model_dict["updated_at"] = self.updated_at.isoformat()
+        model_dict["created_at"] = self.created_at.isoformat()
+
+        return model_dict
